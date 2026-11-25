@@ -40,7 +40,12 @@ def validate_entry(text):
 
 
 def write_entry(path):
-    """Write the joke to *path*, read it back and verify byte-identical."""
+    """Write the joke to *path*, read it back and verify byte-exactly.
+
+    The read-back must have the same byte length as the encoded joke
+    (no trailing newline may sneak in), be byte-identical to it, and
+    hash to the same sha256 digest.
+    """
     ok, reason = validate_entry(JOKE)
     if not ok:
         raise ValueError("invalid entry: %s" % reason)
@@ -49,14 +54,22 @@ def write_entry(path):
         fh.write(data)
     with open(path, "rb") as fh:
         back = fh.read()
+    if len(back) != len(data):
+        raise IOError("read-back byte length mismatch for %s" % path)
     if back != data:
         raise IOError("read-back mismatch for %s" % path)
+    if hashlib.sha256(back).hexdigest() != hashlib.sha256(data).hexdigest():
+        raise IOError("read-back digest mismatch for %s" % path)
     return hashlib.sha256(data).hexdigest()
 
 
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     paths = [os.path.join(here, "entry.txt")]
+    env_dir = os.environ.get("MAKEFUN_OUTPUT_DIR")
+    if env_dir:
+        os.makedirs(env_dir, exist_ok=True)
+        paths.append(os.path.join(env_dir, "entry.txt"))
     output_dir = "/output"
     if os.path.isdir(output_dir):
         paths.append(os.path.join(output_dir, "entry.txt"))
